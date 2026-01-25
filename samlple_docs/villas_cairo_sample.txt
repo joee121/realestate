@@ -1,0 +1,198 @@
+=== Real-Estate Brochure Dataset — Cairo & Surroundings (Demo) ===
+NOTE: All details are illustrative demo data for testing the RAG assistant. 
+Units, prices, and timelines are placeholders only.
+
+------------------------------------------------------------
+VILLA #1 — Lakeview Residence Extension
+Location: New Cairo (5th Settlement), near 90th Street
+Plot Area (m²): 420
+Built-up Area (m²): 310
+Floors: Ground + First + Roof
+Bedrooms: 4 + Maid’s Room
+Bathrooms: 5
+Finishing: Ultra Super Lux (ACs & Kitchen Installed)
+Asking Price (EGP): 27,500,000
+Delivery: Ready to move
+Payment Plan: 30% down payment, up to 4 years installments
+Parking: 2 covered
+Orientation: East/North — garden-facing
+Amenities: Private garden 120 m², plunge pool pre-installed, clubhouse access, jogging lanes, 24/7 security, fiber internet
+Distances: 8 min AUC; 12 min Cairo Festival City; 20 min Ring Road
+Notes: Corner villa with extended setback and mature landscaping.
+BrochureRef: LVX-NC-420-310-01
+
+------------------------------------------------------------
+VILLA #2 — Palm Hills October Enclave
+Location: 6th of October City, near Gezira Club
+Plot Area (m²): 520
+Built-up Area (m²): 360
+Floors: Basement + Ground + First
+Bedrooms: 5 + Living + Maid’s
+Bathrooms: 6
+Finishing: Semi-Finished (core & shell + external)
+Asking Price (EGP): 32,900,000
+Delivery: 12 months
+Payment Plan: 10% down, 6 years equal installments
+Parking: 3 (basement)
+Orientation: South — park view
+Amenities: Community pools, tennis courts, retail promenade, international school proximity
+Distances: 5 min Mall of Egypt; 10 min Waslet Dahshur; 25 min Mehwar
+Notes: Basement has natural light wells; provisioned for home theater.
+BrochureRef: PHE-6O-520-360-02
+
+------------------------------------------------------------
+VILLA #3 — New Zayed Greens
+Location: New Zayed, near Sphinx Airport axis
+Plot Area (m²): 600
+Built-up Area (m²): 400
+Floors: Ground + First + Penthouse
+Bedrooms: 4 (all en-suite)
+Bathrooms: 5
+Finishing: Fully Finished + Central AC + Wardrobes
+Asking Price (EGP): 35,500,000
+Delivery: Ready
+Payment Plan: 40% down, 3 years quarterly
+Parking: 2
+Orientation: West/North — green spine
+Amenities: Private pool 7×3 m, BBQ terrace, smart home package (lights/locks/HVAC), community gym
+Distances: 7 min Cairo–Alex Desert Rd; 15 min Sheikh Zayed; 20 min Arkan Plaza
+Notes: Energy glass; 10 kW rooftop solar provision.
+BrochureRef: NZG-NZ-600-400-03
+
+------------------------------------------------------------
+VILLA #4 — Katameya Heights Edge
+Location: Katameya Heights perimeter, New Cairo
+Plot Area (m²): 730
+Built-up Area (m²): 520
+Floors: Basement + Ground + First
+Bedrooms: 5 + Office + Maid’s
+Bathrooms: 7
+Finishing: Designer Finished (2024) + Heated Pool
+Asking Price (EGP): 79,000,000
+Delivery: Immediate
+Payment Plan: Cash or 50% down + 2 years
+Parking: 4 (2 covered)
+Orientation: Golf course fringe — panoramic
+Amenities: Heated infinity pool, elevator, underfloor heating in bedrooms, panic room, water filtration, solar water heaters
+Distances: 10 min 90th St; 18 min AUC; 25 min Ring Road
+Notes: Sound-insulated façade; imported oak floors; German kitchens.
+BrochureRef: KHE-NC-730-520-04
+
+------------------------------------------------------------
+VILLA #5 — Mostakbal City Courtyard
+Location: Mostakbal City, Zone 3
+Plot Area (m²): 410
+Built-up Area (m²): 285
+Floors: Ground + First + Roof Studio
+Bedrooms: 4 + Family Room
+Bathrooms: 4
+Finishing: Semi-Finished
+Asking Price (EGP): 18,800,000
+Delivery: 18–24 months
+Payment Plan: 5% down, 8 years equal installments
+Parking: 2
+Orientation: Internal courtyard — quiet
+Amenities: District cooling ready, community pool, kids area, bike tracks, medical center
+Distances: 8 min New Capital Monorail station (planned); 15 min AUC; 25 min Ring Road
+Notes: Roof studio 35 m² with wet pantry; provision for external staircase.
+BrochureRef: MCC-MC-410-285-05
+
+------------------------------------------------------------
+VILLA #6 — Sheikh Zayed Park Lane
+Location: Sheikh Zayed First District, near Al Ahly Club
+Plot Area (m²): 455
+Built-up Area (m²): 330
+Floors: Ground + First
+Bedrooms: 4 + Study
+Bathrooms: 5
+Finishing: Fully Finished + Appliances
+Asking Price (EGP): 28,400,000
+Delivery: Ready
+Payment Plan: 25% down, 5 years
+Parking: 2
+Orientation: North — wide garden
+Amenities: Saltwater pool, outdoor kitchen, pergola, CCTV, 2.5 Gbps fiber
+Distances: 6 min Hyper One; 9 min Arkan; 20 min Mehwar 26 July
+Notes: Dual kitchens (dirty/clean); greywater irrigation system.
+BrochureRef: SZP-SZ-455-330-06
+
+------------------------------------------------------------
+VILLA #7 — Rehab Perimeter Vista
+Location: Al Rehab City, Gate 17 perimeter
+Plot Area (m²): 380
+Built-up Area (m²): 270
+Floors: Ground + First + Roof
+Bedrooms: 3 + Maid’s
+Bathrooms: 4
+Finishing: Renovated 2023 — Scandinavian palette
+Asking Price (EGP): 21,700,000
+Delivery: Vacant
+Payment Plan: 50% down, 3 years
+Parking: 2
+Orientation: North/East — open view
+Amenities: Community buses, retail district, medical hub, parks, mosque
+Distances: 5 min Rehab Downtown; 12 min Suez Rd; 18 min Ring Road
+Notes: Wide reception 10.5 m; soundproof master suite.
+BrochureRef: RPV-RH-380-270-07
+
+------------------------------------------------------------
+VILLA #8 — Madinaty Lagoon Row
+Location: Madinaty, B6 extension (lagoon row)
+Plot Area (m²): 500
+Built-up Area (m²): 360
+Floors: Ground + First
+Bedrooms: 4 (2 masters)
+Bathrooms: 5
+Finishing: Developer Finished + ACs
+Asking Price (EGP): 34,200,000
+Delivery: Ready
+Payment Plan: 20% down, 6 years
+Parking: 2
+Orientation: South — lagoon view
+Amenities: Lagoon promenade, golf carts, community schools, sports club
+Distances: 10 min Suez Rd; 15 min Rehab; 25 min New Capital
+Notes: 18 m rear façade; glass balustrades; marble stairs.
+BrochureRef: MLR-MD-500-360-08
+
+------------------------------------------------------------
+VILLA #9 — NAC Garden District
+Location: New Administrative Capital, R5 Garden District
+Plot Area (m²): 460
+Built-up Area (m²): 320
+Floors: Ground + First + Roof
+Bedrooms: 4 + Nanny
+Bathrooms: 5
+Finishing: Core & shell (MEP routed)
+Asking Price (EGP): 16,900,000
+Delivery: 10–14 months
+Payment Plan: 10% down, 7 years
+Parking: 2
+Orientation: North — internal green spine
+Amenities: District cooling, community mall, clinics, school, jogging tracks
+Distances: 6 min Green River; 12 min Government District; 20 min Cairo–Sokhna
+Notes: Roof terrace 70 m²; lift shaft ready.
+BrochureRef: NAC-R5-460-320-09
+
+------------------------------------------------------------
+VILLA #10 — West Cairo Hills
+Location: Hadayek October / New October perimeter
+Plot Area (m²): 650
+Built-up Area (m²): 430
+Floors: Basement + Ground + First + Roof
+Bedrooms: 5 + Multipurpose Basement
+Bathrooms: 6
+Finishing: Semi-Finished exterior + plastered interior
+Asking Price (EGP): 29,800,000
+Delivery: 16–20 months
+Payment Plan: 15% down, 7.5 years
+Parking: 3
+Orientation: North/West — open desert vista
+Amenities: Clubhouse with indoor pool, padel courts, co-working lounge, retail strip
+Distances: 8 min Wahat Rd; 15 min Mall of Egypt; 30 min Downtown 6th October
+Notes: Basement ceiling 3.6 m; sump & drainage done; designed for cross-ventilation.
+BrochureRef: WCH-WC-650-430-10
+
+------------------------------------------------------------
+INDEX FIELDS (suggested for metadata during ingestion)
+- ProjectName, AreaName, City, PlotArea_m2, BUA_m2, Beds, Baths, Finishing, Delivery, Price_EGP,
+  Payment_DP, Payment_TenorYears, Orientation, Amenities, Distances, Notes, BrochureRef

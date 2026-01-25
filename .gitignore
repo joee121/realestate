@@ -1,0 +1,27 @@
+# Node / Next
+node_modules/
+.next/
+out/
+dist/
+*.log
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/
+
+# Chroma DB (local vector store)
+chroma/
+backend/chroma/
+
+# OS
+.DS_Store
+Thumbs.db
