@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from flask_cors import CORS
 import os, io, uuid, traceback, re, json
 from datetime import datetime
 from pathlib import Path
@@ -515,3 +515,7 @@ def health():
         "enable_web_search": ENABLE_WEB_SEARCH,
         "has_tavily_key": bool(TAVILY_API_KEY),
     }
+    CORS(app, origins=[
+    "http://localhost:3000",
+    "https://*.vercel.app"  # This allows all Vercel deployments
+])
