@@ -2,66 +2,204 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
-type Msg = { role: "user" | "assistant"; content: string; sources?: string[] };
-type ChatSession = { id: string; title: string; messages: Msg[] };
 
-const API_BASE = "http://127.0.0.1:8000";
+type Msg = {
+  id?: string;
+  role: "user" | "assistant";
+  content: string;
+  sources?: string[];
+  created_at?: string;
+};
 
+type ChatSession = {
+  id: string;
+  title: string | null;
+  created_at?: string;
+};
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://127.0.0.1:8000";
+
+/* =========================
+   DB helpers
+   ========================= */
+async function dbListChats(): Promise<ChatSession[]> {
+  const { data, error } = await supabase
+    .from("chats")
+    .select("id,title,created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as ChatSession[];
+}
+
+async function dbCreateChat(title = "New Chat"): Promise<string> {
+  const { data, error } = await supabase
+    .from("chats")
+    .insert({ title })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  return data.id as string;
+}
+
+async function dbDeleteChat(chatId: string) {
+  // delete messages first (FK-safe)
+  await supabase.from("messages").delete().eq("chat_id", chatId);
+  const { error } = await supabase.from("chats").delete().eq("id", chatId);
+  if (error) throw error;
+}
+
+async function dbSetChatTitle(chatId: string, title: string) {
+  const { error } = await supabase.from("chats").update({ title }).eq("id", chatId);
+  if (error) throw error;
+}
+
+async function dbListMessages(chatId: string): Promise<Msg[]> {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id,role,content,sources,created_at")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    role: r.role,
+    content: r.content,
+    sources: (r.sources ?? []) as string[],
+    created_at: r.created_at,
+  })) as Msg[];
+}
+
+async function dbInsertMessage(chatId: string, msg: Msg) {
+  const payload = {
+    chat_id: chatId,
+    role: msg.role,
+    content: msg.content,
+    sources: msg.sources ?? [],
+  };
+
+  const { data, error } = await supabase
+    .from("messages")
+    .insert(payload)
+    .select("id,created_at")
+    .single();
+
+  if (error) throw error;
+  return data as { id: string; created_at: string };
+}
+
+/* =========================
+   Page
+   ========================= */
 export default function Home() {
-  const [sessions, setSessions] = useState<ChatSession[]>(() => [
-    {
-      id: crypto.randomUUID(),
-      title: "Welcome Chat",
-      messages: [],
-    },
-  ]);
-  const [activeId, setActiveId] = useState<string>(() => sessions[0].id);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeId, setActiveId] = useState<string>("");
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [booting, setBooting] = useState(true);
 
   const active = useMemo(
-    () => sessions.find((s) => s.id === activeId) ?? sessions[0],
+    () => sessions.find((s) => s.id === activeId),
     [sessions, activeId]
   );
 
-  const setActiveMessages = (updater: (prev: Msg[]) => Msg[]) => {
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeId ? { ...s, messages: updater(s.messages) } : s
-      )
-    );
-  };
+  
+  // initial load
+  useEffect(() => {
+    (async () => {
+      try {
+        const chats = await dbListChats();
+        setSessions(chats);
 
-  const setActiveTitleIfEmpty = (title: string) => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== activeId) return s;
-        if (s.title && s.title !== "Welcome Chat") return s;
-        return { ...s, title };
-      })
-    );
-  };
+        // pick first chat or create one
+        if (chats.length) {
+          setActiveId(chats[0].id);
+        } else {
+          const id = await dbCreateChat("Welcome Chat");
+          setSessions([{ id, title: "Welcome Chat" }]);
+          setActiveId(id);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setBooting(false);
+      }
+    })();
+  }, []);
 
-  const onNewChat = () => {
-    const id = crypto.randomUUID();
-    setSessions((prev) => [
-      { id, title: "New Chat", messages: [] },
-      ...prev,
-    ]);
-    setActiveId(id);
-  };
+  // load messages whenever activeId changes
+  useEffect(() => {
+    if (!activeId) return;
+    (async () => {
+      try {
+        const msgs = await dbListMessages(activeId);
+        setMessages(msgs);
+      } catch (e) {
+        console.error(e);
+        setMessages([]);
+      }
+    })();
+  }, [activeId]);
 
-  const onDeleteChat = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    if (id === activeId) {
-      // pick next available
-      setTimeout(() => {
-        setActiveId((curr) => {
-          const remaining = sessions.filter((s) => s.id !== id);
-          return remaining[0]?.id ?? curr;
-        });
-      }, 0);
+  const onNewChat = async () => {
+    try {
+      const id = await dbCreateChat("New Chat");
+      const chats = await dbListChats();
+      setSessions(chats);
+      setActiveId(id);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to create chat (check RLS/policies).");
     }
   };
+
+  const onDeleteChat = async (id: string) => {
+    try {
+      await dbDeleteChat(id);
+      const chats = await dbListChats();
+      setSessions(chats);
+
+      // choose next chat
+      if (id === activeId) {
+        const nextId = chats[0]?.id ?? "";
+        setActiveId(nextId);
+        if (!nextId) setMessages([]);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to delete chat (check RLS/policies).");
+    }
+  };
+
+  const setActiveTitleIfEmpty = async (title: string) => {
+    if (!activeId) return;
+    const current = sessions.find((s) => s.id === activeId);
+    const curTitle = (current?.title ?? "").trim();
+
+    // only set title if empty or default titles
+    if (curTitle && curTitle !== "Welcome Chat" && curTitle !== "New Chat") return;
+
+    try {
+      await dbSetChatTitle(activeId, title);
+      const chats = await dbListChats();
+      setSessions(chats);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (booting) {
+    return (
+      <div style={{ padding: 24, fontFamily: "system-ui" }}>
+        Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="appShell">
@@ -74,8 +212,10 @@ export default function Home() {
       />
 
       <MainPanel
-        messages={active.messages}
-        onMessages={setActiveMessages}
+        activeChatId={activeId}
+        chatTitle={active?.title ?? ""}
+        messages={messages}
+        setMessages={setMessages}
         onSetTitle={setActiveTitleIfEmpty}
       />
 
@@ -83,6 +223,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 /* =========================
    Sidebar
@@ -103,9 +244,10 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img className="logo" src="c:\Users\yfouad\Downloads\shadow.jpg" alt="" />
+        {/* Put your file here: /public/logo.png */}
+        <img className="logo" src="/logo.png" alt="Tatweer Misr" />
         <div className="brandText">
-          <div className="brandName">Broker</div>
+          <div className="brandName">Tatweer Misr</div>
           <div className="brandSub">AI Assistant</div>
         </div>
       </div>
@@ -132,7 +274,7 @@ function Sidebar({
             role="button"
             tabIndex={0}
           >
-            <div className="chatTitle">{s.title || "Untitled"}</div>
+            <div className="chatTitle">{(s.title || "Untitled").trim()}</div>
             <button
               className="dots"
               title="Delete chat"
@@ -148,10 +290,7 @@ function Sidebar({
       </div>
 
       <div className="sidebarFooter">
-        <div className="betaNote">
-          good luck
-          
-        </div>
+        <div className="betaNote">good luck</div>
 
         <div className="footerBtns">
           <button className="footerBtn">
@@ -170,18 +309,22 @@ function Sidebar({
    Main Panel
    ========================= */
 function MainPanel({
+  activeChatId,
+  chatTitle,
   messages,
-  onMessages,
+  setMessages,
   onSetTitle,
 }: {
+  activeChatId: string;
+  chatTitle: string;
   messages: Msg[];
-  onMessages: (updater: (prev: Msg[]) => Msg[]) => void;
+  setMessages: React.Dispatch<React.SetStateAction<Msg[]>>;
   onSetTitle: (title: string) => void;
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // uploader state
+  // uploader state (still hits your backend ingest)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadStatus, setUploadStatus] = useState("");
 
@@ -189,15 +332,23 @@ function MainPanel({
 
   const send = async () => {
     const q = input.trim();
-    if (!q || loading) return;
+    if (!q || loading || !activeChatId) return;
 
-    onSetTitle(q.length > 28 ? q.slice(0, 28) + "…" : q);
+    // set title (short)
+    const title = q.length > 28 ? q.slice(0, 28) + "…" : q;
+    onSetTitle(title);
 
-    onMessages((prev) => [...prev, { role: "user", content: q }]);
     setInput("");
     setLoading(true);
 
+    // 1) Insert USER message in Supabase
+    const optimisticUser: Msg = { role: "user", content: q };
+    setMessages((prev) => [...prev, optimisticUser]);
+
     try {
+      await dbInsertMessage(activeChatId, optimisticUser);
+
+      // 2) Ask backend (RAG)
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -206,15 +357,24 @@ function MainPanel({
 
       const data = await res.json();
 
-      onMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.answer, sources: data.sources },
-      ]);
+      // 3) Insert ASSISTANT message in Supabase
+      const assistantMsg: Msg = {
+        role: "assistant",
+        content: data.answer ?? "",
+        sources: data.sources ?? [],
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+      await dbInsertMessage(activeChatId, assistantMsg);
     } catch (e: any) {
-      onMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `Error: ${String(e?.message ?? e)}` },
-      ]);
+      const errMsg: Msg = {
+        role: "assistant",
+        content: `Error: ${String(e?.message ?? e)}`,
+      };
+      setMessages((prev) => [...prev, errMsg]);
+      try {
+        await dbInsertMessage(activeChatId, errMsg);
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -266,28 +426,34 @@ function MainPanel({
         <BadgeIcon />
       </div>
 
-      {/* center content */}
       <div className={`centerStage ${isEmpty ? "empty" : "chatting"}`}>
         {isEmpty ? (
           <div className="welcome">
-            <h1>Hello Shadow Guest,</h1>
-            <h2>Welcome to  AI Assistant</h2>
+            <h1>Hello Tatweer Misr Guest,</h1>
+            <h2>Welcome to AI Assistant</h2>
           </div>
         ) : (
           <MessageList messages={messages} />
         )}
 
-        {/* input pill */}
         <div className="inputPillWrap">
           <div className="inputPill">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKey}
-              placeholder="Start a conversation..."
+              placeholder={
+                chatTitle?.trim()
+                  ? `Message "${chatTitle.trim()}"`
+                  : "Start a conversation..."
+              }
             />
 
-            <button className="pillIcon" title="Upload brochures" onClick={() => fileInputRef.current?.click()}>
+            <button
+              className="pillIcon"
+              title="Upload brochures"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <UploadIcon />
             </button>
 
@@ -337,14 +503,12 @@ function MessageList({ messages }: { messages: Msg[] }) {
   return (
     <div className="chatArea">
       {messages.map((m, i) => (
-        <div key={i} className={`msg ${m.role}`}>
+        <div key={m.id ?? i} className={`msg ${m.role}`}>
           <div className="msgBubble">
             <div className="msgRole">{m.role}</div>
             <div className="msgText">{m.content}</div>
             {m.sources?.length ? (
-              <div className="msgSources">
-                Sources: {m.sources.join(" • ")}
-              </div>
+              <div className="msgSources">Sources: {m.sources.join(" • ")}</div>
             ) : null}
           </div>
         </div>
@@ -355,61 +519,128 @@ function MessageList({ messages }: { messages: Msg[] }) {
 }
 
 /* =========================
-   Icons (simple inline SVG)
+   Icons
    ========================= */
 function HomeIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10.5Z" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
     </svg>
   );
 }
 function UploadIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 16V4m0 0 4 4m-4-4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M12 16V4m0 0 4 4m-4-4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 function MicIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v4a3 3 0 0 0 3 3Z" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M19 11a7 7 0 0 1-14 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M12 18v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M12 14a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v4a3 3 0 0 0 3 3Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M19 11a7 7 0 0 1-14 0"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12 18v3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 function SendIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M22 2 11 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M22 2 15 22l-4-9-9-4 20-7Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path
+        d="M22 2 11 13"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M22 2 15 22l-4-9-9-4 20-7Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 function BadgeIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M9.5 12.5 11 14l3.5-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M9.5 12.5 11 14l3.5-4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 function LogoutIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M10 17 5 12l5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 12h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M10 17 5 12l5-5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 12h10"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
     </svg>
   );
 }
 function GearIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
       <path
         d="M19.4 15a7.8 7.8 0 0 0 .1-2l2-1.2-2-3.5-2.3.6a8 8 0 0 0-1.7-1l-.3-2.4H10.8l-.3 2.4a8 8 0 0 0-1.7 1L6.5 8.3l-2 3.5 2 1.2a7.8 7.8 0 0 0 .1 2l-2 1.2 2 3.5 2.3-.6a8 8 0 0 0 1.7 1l.3 2.4h4.4l.3-2.4a8 8 0 0 0 1.7-1l2.3.6 2-3.5-2-1.2Z"
         stroke="currentColor"
@@ -421,31 +652,24 @@ function GearIcon() {
 }
 
 /* =========================
-   CSS (matches screenshot vibe)
+   CSS
    ========================= */
 const styles = `
 :root{
   --sideW: 310px;
   --bg1: #070000ff;
   --bg2: #666667ff;
-  --text: #111213;
   --muted: #6b7280;
   --card: rgba(255,255,255,.92);
   --shadow: 0 18px 50px rgba(0,0,0,.12);
   --border: rgba(0,0,0,.08);
 }
-
 *{ box-sizing: border-box; }
 html, body{ height: 100%; margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
 button{ font-family: inherit; }
 
-.appShell{
-  height: 100vh;
-  display: flex;
-  overflow: hidden;
-}
+.appShell{ height: 100vh; display: flex; overflow: hidden; }
 
-/* Sidebar */
 .sidebar{
   width: var(--sideW);
   background: #ffffff;
@@ -455,18 +679,8 @@ button{ font-family: inherit; }
   flex-direction: column;
   gap: 14px;
 }
-
-.brand{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 6px 8px;
-}
-.logo{
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-}
+.brand{ display: flex; gap: 10px; align-items: center; padding: 6px 8px; }
+.logo{ width: 44px; height: 44px; object-fit: contain; }
 .brandName{ font-weight: 800; font-size: 16px; color: #111; line-height: 1.1; }
 .brandSub{ font-size: 12px; color: var(--muted); margin-top: 2px; }
 
@@ -485,11 +699,7 @@ button{ font-family: inherit; }
 }
 .plus{ font-size: 18px; line-height: 1; }
 
-.navIcons{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
+.navIcons{ display: flex; gap: 10px; align-items: center; }
 .iconBtn{
   border: none;
   background: #f3f4f6;
@@ -510,11 +720,7 @@ button{ font-family: inherit; }
   text-transform: capitalize;
 }
 
-.chatList{
-  flex: 1;
-  overflow: auto;
-  padding-right: 4px;
-}
+.chatList{ flex: 1; overflow: auto; padding-right: 4px; }
 .chatItem{
   display: flex;
   align-items: center;
@@ -550,16 +756,8 @@ button{ font-family: inherit; }
   flex-direction: column;
   gap: 12px;
 }
-.betaNote{
-  font-size: 11px;
-  color: #9ca3af;
-  line-height: 1.5;
-  padding: 0 6px;
-}
-.footerBtns{
-  display: flex;
-  gap: 10px;
-}
+.betaNote{ font-size: 11px; color: #9ca3af; line-height: 1.5; padding: 0 6px; }
+.footerBtns{ display: flex; gap: 10px; }
 .footerBtn{
   flex: 1;
   border: none;
@@ -582,7 +780,6 @@ button{ font-family: inherit; }
               linear-gradient(135deg, var(--bg1), var(--bg2));
   overflow: hidden;
 }
-
 .topRightBadge{
   position: absolute;
   top: 18px;
@@ -606,7 +803,6 @@ button{ font-family: inherit; }
   gap: 26px;
   padding: 26px;
 }
-
 .centerStage.chatting{
   justify-content: flex-end;
   padding-bottom: 34px;
@@ -617,16 +813,8 @@ button{ font-family: inherit; }
   color: white;
   text-shadow: 0 10px 30px rgba(0,0,0,.20);
 }
-.welcome h1{
-  margin: 0;
-  font-size: 28px;
-  font-weight: 800;
-}
-.welcome h2{
-  margin: 10px 0 0;
-  font-size: 34px;
-  font-weight: 900;
-}
+.welcome h1{ margin: 0; font-size: 28px; font-weight: 800; }
+.welcome h2{ margin: 10px 0 0; font-size: 34px; font-weight: 900; }
 
 /* Chat area */
 .chatArea{
@@ -638,7 +826,6 @@ button{ font-family: inherit; }
   flex-direction: column;
   gap: 10px;
 }
-
 .msg{ display: flex; }
 .msg.user{ justify-content: flex-end; }
 .msg.assistant{ justify-content: flex-start; }
@@ -659,16 +846,8 @@ button{ font-family: inherit; }
   color: var(--muted);
   margin-bottom: 6px;
 }
-.msgText{
-  white-space: pre-wrap;
-  line-height: 1.55;
-  color: #111;
-}
-.msgSources{
-  margin-top: 8px;
-  font-size: 12px;
-  color: #374151;
-}
+.msgText{ white-space: pre-wrap; line-height: 1.55; color: #111; }
+.msgSources{ margin-top: 8px; font-size: 12px; color: #374151; }
 
 /* Input pill */
 .inputPillWrap{
@@ -678,7 +857,6 @@ button{ font-family: inherit; }
   align-items: center;
   gap: 10px;
 }
-
 .inputPill{
   width: 100%;
   background: rgba(255,255,255,.92);
@@ -690,7 +868,6 @@ button{ font-family: inherit; }
   align-items: center;
   gap: 10px;
 }
-
 .inputPill input{
   flex: 1;
   border: none;
@@ -699,7 +876,6 @@ button{ font-family: inherit; }
   font-size: 16px;
   padding: 10px 10px;
 }
-
 .pillIcon{
   border: none;
   width: 40px;
@@ -711,7 +887,6 @@ button{ font-family: inherit; }
   place-items: center;
   color: #111;
 }
-
 .sendBtn{
   border: none;
   width: 44px;
@@ -723,10 +898,7 @@ button{ font-family: inherit; }
   place-items: center;
   color: white;
 }
-.sendBtn:disabled{
-  opacity: .55;
-  cursor: not-allowed;
-}
+.sendBtn:disabled{ opacity: .55; cursor: not-allowed; }
 
 .uploadStatus{
   font-size: 12px;
@@ -734,11 +906,8 @@ button{ font-family: inherit; }
   text-shadow: 0 10px 30px rgba(0,0,0,.25);
 }
 
-/* Scrollbar (optional) */
 .chatList::-webkit-scrollbar,
-.chatArea::-webkit-scrollbar{
-  width: 10px;
-}
+.chatArea::-webkit-scrollbar{ width: 10px; }
 .chatList::-webkit-scrollbar-thumb,
 .chatArea::-webkit-scrollbar-thumb{
   background: rgba(0,0,0,.12);
